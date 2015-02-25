@@ -1,0 +1,196 @@
+NOTES:
+
+First and foremost, this all started as a rewrite of what yieldbuddy does.
+Well, rewrite is a bad word for this.  I just basically saw this thing borked and
+lacking any sort of documentation, and then didn't like the way some things were
+being done, so I decided to just go ahead and build my own. 
+
+Serial Communication between Pi and Arduino:
+	Arduino:
+		Input:
+			Will accept incoming commands from the serial.
+			Each line sent with "\n"
+		Output:
+			Will output a JSON encoded chunk of data.
+			For now, we'll be doing it the same way YB does, but we'll have different formatting in place.
+			Break the data up into 3 chunks, then chunks are sent every second loop (over a period of 5 loop()s).
+
+			Loop 1 & 4: Timestamp,Sensors,Relays,Relay_isAuto
+			Loop 3: Lights,Watering,SetPoint_pH1,SetPoint_pH2,SetPoint_Temp
+			Loop 5: SetPoint_RH,SetPoint_TDS1,SetPoint_TDS2,SetPoint_CO2,SetPoint_Light
+
+			Output will be in JSON format of:
+			{
+				"timestamp": "0123456789",
+				"object": {
+					"data1": "val1",
+					"data2": "val2"
+				}
+			}
+
+			Example of Loop1:
+			{
+				"timestamp": "0123456789",
+				"sensors": {
+					"pH1": "ph1value",
+					"ph2": "ph2value",
+					"temp": "tempvalue",
+					"rh": "rhvalue",
+					"tds1": "tds1value",
+					"tds2": "tds2value",
+					"co2": "co2value",
+					"light": "lightvalue"
+				},
+				"relays": [
+					"[LOW|HIGH]",
+					"[LOW|HIGH]",
+					"[LOW|HIGH]",
+					"[LOW|HIGH]",
+					"[LOW|HIGH]",
+					"[LOW|HIGH]"
+				],
+				"relay_isauto": [
+					"[0|1]",
+					"[0|1]",
+					"[0|1]",
+					"[0|1]",
+					"[0|1]",
+					"[0|1]"
+				]
+			}
+
+			stripped:
+			{"timestamp":"0123456789","sensors":{"pH1":"ph1value","ph2":"ph2value","temp":"tempvalue","rh":"rhvalue","tds1":"tds1value","tds2":"tds2value","co2":"co2value","light":"lightvalue"},"relays":["LOW","LOW","LOW","LOW","LOW","LOW"]"relay_isauto":["0","0","0","0","0","0",]}
+
+
+----------
+Just some notes.
+
+Arduino:
+
+Serial Commands
+
+xStatus
+	Return current status of all pins on Arduino.
+	Returns any configurable variables (stored on flash card)
+
+	@TODO: Figure out output format - I've seen this somewhere else, I just can't remember right now.
+
+
+Serial output:
+	Yieldbuddy breaks this up into 3 chunks and those chunks are then sent every second loop (over a period of 5 loop()s)
+	Sensor and Relay values are sent every 1st and 4th messages.
+
+	We'll break this down and move most of it under a specific command.
+	We'll instead report just sensor readings to the console.
+	Will report using JSON
+		{
+			"timestamp": {
+		        "timestamp": "0",
+		        "month": "0",
+		        "day": "0",
+		        "year": "0",
+		        "hour": "0",
+		        "minute": "0",
+		        "second": "0"
+		    },
+		    "object": {
+		        "a": "b",
+		        "c": "d"
+		    },
+		    "string": "Hello World",
+		    "array": [
+		        1,
+		        2,
+		        3
+		    ],
+		    "boolean": true,
+		    "null": null,
+		    "number": 123
+		}
+
+	Loop 1 and 4
+	//Timestamp
+	timestamp,month,day,year,hour,minute,second\n
+	//Sensors
+	Sensors,pH1Value,pH2Value,TempValue,RHValue,TDS1,TDS2,CO2,LightValue\n
+	//Relay status (6 relays)
+	Relays,[LOW|HIGH],[LOW|HIGH],[LOW|HIGH],[LOW|HIGH],[LOW|HIGH],[LOW|HIGH]\n
+	//Relay isAuto on?
+	Relay_isAuto,[0|1],[0|1],[0|1],[0|1],[0|1],[0|1]\n
+
+	Loop 3
+	//Lights
+	Lighting,Light_ON_hour,Light_ON_min,Light_OFF_hour,Light_OFF_min\n
+	//Watering
+	Watering,Pump_start_hour,Pump_start_min,Pump_start_isAM[0|1],Pump_every_hours,Pump_every_mins,Pump_for,Pump_times\n
+	//SetPoints
+	//pH1
+	SetPoint_pH1,pH1Value_Low,pH1Value_High,pH1_Status\n
+	//pH2
+	SetPoint_pH2,pH2Value_Low,pH2Value_High,pH2_Status\n
+	//Temp
+	SetPoint_Temp,TempValue_Low,TempValue_High,Heater_ON,Heater_OFF,AC_ON,AC_OFF,Temp_Status\n
+	
+	Loop 5
+	//RH
+	SetPoint_RH,RHValue_Low,RHValue_High,Humidifier_ON,Humidifier_OFF,Dehumidifier_ON,Dehumidifier_OFF,RH_Status\n
+	//TDS1
+	SetPoint_TDS1,TDS1Value_Low,TDS1Value_High,NutePump1_ON,NutePump1_OFF,MixPump1_Enabled,TDS1_Status
+	//TDS2
+	SetPoint_TDS2,TDS2Value_Low,TDS2Value_High,NutePump2_ON,NutePump2_OFF,MixPump2_Enabled,TDS2_Status
+	//CO2
+	SetPoint_CO2,CO2Value_Low,CO2Value_High,CO2_ON,CO2_Off,CO2_Enabled,CO2_Status\n
+	//Light
+	SetPoint_Light,LightValue_Low,LightValue_High,LightStatus\n
+
+Serial Input
+
+	Yieldbuddy takes the following commands - case sensitive
+
+	EEProm,Value Command
+	6,1 "Relay1 on"
+	6,0 "Relay1 off"
+	7,1 "Relay2 on"
+	7.0 "Relay2 off"
+	8,1 "Relay2 on"
+	8.0 "Relay3 off"
+	9,1 "Relay4 on"
+	9.0 "Relay4 off"
+	10,1 "Relay5 on"
+	10.0 "Relay5 off"
+	11,1 "Relay6 on"
+	11.0 "Relay6 off"
+	211,1 "Relay1 isAuto 1"
+	211,0 "Relay1 isAuto 0"
+	212,1 "Relay2 isAuto 1"
+	212,0 "Relay2 isAuto 0"
+	213,1 "Relay3 isAuto 1"
+	213,0 "Relay3 isAuto 0"
+	214,1 "Relay4 isAuto 1"
+	214,0 "Relay4 isAuto 0"
+	215,1 "Relay5 isAuto 1"
+	215,0 "Relay5 isAuto 0"
+	216,1 "Relay6 isAuto 1"
+	216,0 "Relay6 isAuto 0"
+
+	"restoredefaults"
+
+	"setdate [timestring]"
+		EEProm
+		0, parsed_hour
+		1, parsed_minute
+		2, parsed second
+		3, parsed day
+		4, parsed month
+		5, parsed year
+		Sets time on RTC
+
+	"setlightschedule x"
+	"setwateringschedule x"
+	"setPH1 x"
+
+
+	"Relay1 on"
+	"Relay1 off"
+
